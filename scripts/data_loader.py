@@ -1,10 +1,10 @@
 import os
 import torch
-import cv2
+from PIL import Image
 from torchvision.datasets import ImageFolder
-from torchvision.transforms import v2, InterpolationMode
+from torchvision import v2, InterpolationMode, ToPILImage
 
-def create_folder_dataset(dataset, num_class, num_images, transform = None):
+def create_folder_dataset(dataset, name, transform = None):
     if transform:
         t = transform
     else:
@@ -14,11 +14,27 @@ def create_folder_dataset(dataset, num_class, num_images, transform = None):
         v2.ToImage(),
         v2.ToDtype(torch.float32, scale=True)])
 
-    for i in range(0, num_class):
-        os.Path('../datasets/'+dataset.name+'/'+dataset.name+'1'+'/'+"{:03d}".format(i)).mkdir()
-        for j in range(0, num_images):
-            image, _ = dataset.get_image(i+1, j+1)
-            cv2.imwrite('../datasets/'+dataset.name+'/'+dataset.name+'1'+'/'+"{:03d}".format(i)+"/{:03d}".format(j)+".png", image)
-    dataset = ImageFolder(root='../datasets/'+dataset.name+'/'+dataset.name+'1', transform = t)
-    return dataset
+        dict_dataset = {}
+        targets = []
+
+        for image, target in dataset:
+            if target not in targets:
+                targets.append(target)
+                dict_dataset[target] = [image]
+            else:
+                dict_dataset[target].append(image)
+
+        dataset_directory = f"datasets/{name}/{name}1"
+        if os.path.exists(dataset_directory):
+            os.makedirs(dataset_directory)
+
+        for target, images in dataset_directory.items():
+            target_directory = f"{dataset_directory}/{target}"
+            if os.path.exist(target_directory):
+                os.makedirs(target_directory)
+            
+            for image in images:
+                image = ToPILImage(image)
+                image.save(f'{target_directory}/{images.index(image)}')
         
+        dataset = ImageFolder(root=dataset_directory)
