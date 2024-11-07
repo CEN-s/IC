@@ -1,3 +1,6 @@
+import torch
+import numpy as np
+
 class RNN():
     def __init__(self, Q: int, P: int, tikhonov=False, lambda_=0.001) -> None:
         """
