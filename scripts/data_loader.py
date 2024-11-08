@@ -1,10 +1,30 @@
 import os
 import torch
+from typing import overload
 from PIL import Image
 from torchvision.datasets import ImageFolder
 from torchvision import v2, InterpolationMode, ToPILImage
+from torch.utils.data import Dataset
 
-def create_folder_dataset(dataset, name, transform = None):
+class ListDataset(Dataset):
+    def __init__(self, data_list, transform=None):
+        self.dataset = data_list
+        self.transform = transform
+
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        image, label = self.data_list[idx]
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        return image, label
+
+@overload
+def create_folder_dataset(dataset, name, transform=None):
     if transform:
         t = transform
     else:
@@ -37,4 +57,18 @@ def create_folder_dataset(dataset, name, transform = None):
                 image = ToPILImage(image)
                 image.save(f'{target_directory}/{images.index(image)}')
         
-        dataset = ImageFolder(root=dataset_directory)
+        dataset = ImageFolder(root=dataset_directory, transform=t)
+
+@overload
+def create_folder_dataset(directory, name, labels, n, transform=None):
+    dataset = []
+    files = os.listdir(directory)
+    for file in files:
+        image = Image.open(f'{directory}/{file}')
+        label = (files.index(file) % n) + 1 if (files.index(file) % n) + 1 != 0 else n
+        dataset.append((image, label))
+    dataset = ListDataset(dataset, transform)
+    dataset = create_folder_dataset(dataset, name, transform)
+    return dataset
+
+        
