@@ -1,38 +1,32 @@
+from typing import overload, Union, List
 import os
 import torch
-from typing import overload
-from PIL import Image
 from torchvision.datasets import ImageFolder
-from torchvision import v2, InterpolationMode, ToPILImage
-from torch.utils.data import Dataset
-
-class ListDataset(Dataset):
-    def __init__(self, data_list, transform=None):
-        self.dataset = data_list
-        self.transform = transform
-
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def __getitem__(self, idx):
-        image, label = self.data_list[idx]
-        
-        if self.transform:
-            image = self.transform(image)
-        
-        return image, label
+from torchvision import transforms
+from torchvision.transforms import ToPILImage, InterpolationMode
+from PIL import Image
 
 @overload
-def create_folder_dataset(dataset, name, transform=None):
-    if transform:
-        t = transform
-    else:
-        t = v2.Compose([
-        v2.Grayscale(num_output_channels=1),
-        v2.Resize((128, 128), interpolation=InterpolationMode.BILINEAR), 
-        v2.ToImage(),
-        v2.ToDtype(torch.float32, scale=True)])
+def create_folder_dataset(dataset: List[tuple], name: str, transform=None) -> ImageFolder:
+    ...
+
+@overload
+def create_folder_dataset(directory: str, name: str, n: int, transform=None) -> ImageFolder:
+    ...
+
+def create_folder_dataset(dataset_or_directory: Union[List[tuple], str], name: str, n: int = None, transform=None):
+    # Se for uma lista de tuplas, trata como `dataset`
+    if isinstance(dataset_or_directory, list):
+        dataset = dataset_or_directory
+        if transform:
+            t = transform
+        else:
+            t = transforms.Compose([
+                transforms.Grayscale(num_output_channels=1),
+                transforms.Resize((128, 128), interpolation=InterpolationMode.BILINEAR), 
+                transforms.ToTensor(),
+                transforms.Lambda(lambda x: x.type(torch.float32))
+            ])
 
         dict_dataset = {}
         targets = []
@@ -45,30 +39,33 @@ def create_folder_dataset(dataset, name, transform=None):
                 dict_dataset[target].append(image)
 
         dataset_directory = f"datasets/{name}/{name}1"
-        if os.path.exists(dataset_directory):
+        if not os.path.exists(dataset_directory):
             os.makedirs(dataset_directory)
 
-        for target, images in dataset_directory.items():
+        for target, images in dict_dataset.items():
             target_directory = f"{dataset_directory}/{target}"
-            if os.path.exist(target_directory):
+            if not os.path.exists(target_directory):
                 os.makedirs(target_directory)
             
-            for image in images:
-                image = ToPILImage(image)
-                image.save(f'{target_directory}/{images.index(image)}')
+            for index, image in enumerate(images):
+                if not isinstance(image, Image.Image):
+                    image = ToPILImage()(image)
+                image.save(f'{target_directory}/{index}.png')
         
         dataset = ImageFolder(root=dataset_directory, transform=t)
-
-@overload
-def create_folder_dataset(directory, name, labels, n, transform=None):
-    dataset = []
-    files = os.listdir(directory)
-    for file in files:
-        image = Image.open(f'{directory}/{file}')
-        label = (files.index(file) % n) + 1 if (files.index(file) % n) + 1 != 0 else n
-        dataset.append((image, label))
-    dataset = ListDataset(dataset, transform)
-    dataset = create_folder_dataset(dataset, name, transform)
-    return dataset
-
+        return dataset
+    
+    # Se for um diretório, trata como `directory`
+    elif isinstance(dataset_or_directory, str) and n is not None:
+        directory = dataset_or_directory
+        dataset = []
+        files = os.listdir(directory)
+        for idx, file in enumerate(files):
+            image = Image.open(f'{directory}/{file}')
+            label = (idx % n) + 1 if (idx % n) + 1 != 0 else n
+            dataset.append((image, label))
         
+        # Chama a função novamente usando o dataset carregado
+        return create_folder_dataset(dataset, name, transform=transform)
+    else:
+        raise ValueError("Invalid parameters for create_folder_dataset.")
