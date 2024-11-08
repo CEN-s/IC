@@ -1,3 +1,6 @@
+from numpy.lib.stride_tricks import as_strided
+import numpy as np
+
 def windowed_view(img: np.ndarray, window_shape: tuple[int, int]):
     out_shape = (img.shape[0] - window_shape[0] + 1, img.shape[1] - window_shape[1] + 1) + window_shape
     strides = img.strides * 2
