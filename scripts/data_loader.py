@@ -1,10 +1,21 @@
-from typing import overload, Union, List
 import os
 import torch
+from typing import overload, Union, List
+from concurrent.futures import ThreadPoolExecutor
+
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 from torchvision.transforms import ToPILImage, InterpolationMode
+
 from PIL import Image
+
+def load_image(file_path):
+    image = Image.open(file_path)
+    return image
+
+
+def save_image(image, file_path):
+    image.save(file_path)
 
 @overload
 def create_folder_dataset(dataset: List[tuple], name: str, transform=None) -> ImageFolder:
@@ -15,19 +26,19 @@ def create_folder_dataset(directory: str, name: str, n: int, transform=None) -> 
     ...
 
 def create_folder_dataset(dataset_or_directory: Union[List[tuple], str], name: str, n: int = None, transform=None):
-    # Se for uma lista de tuplas, trata como `dataset`
+    if transform:
+        t = transform
+    else:
+        t = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize((128, 128), interpolation=InterpolationMode.BILINEAR), 
+            transforms.Lambda(lambda x: x.type(torch.float32))
+        ])
+
     if isinstance(dataset_or_directory, list):
         dataset = dataset_or_directory
-        if transform:
-            t = transform
-        else:
-            t = transforms.Compose([
-                transforms.Grayscale(num_output_channels=1),
-                transforms.Resize((128, 128), interpolation=InterpolationMode.BILINEAR), 
-                transforms.ToTensor(),
-                transforms.Lambda(lambda x: x.type(torch.float32))
-            ])
-
+        
         dict_dataset = {}
         targets = []
 
@@ -39,33 +50,33 @@ def create_folder_dataset(dataset_or_directory: Union[List[tuple], str], name: s
                 dict_dataset[target].append(image)
 
         dataset_directory = f"datasets/{name}/{name}1"
-        if not os.path.exists(dataset_directory):
-            os.makedirs(dataset_directory)
-
-        for target, images in dict_dataset.items():
+        os.makedirs(dataset_directory, exist_ok=True)
+        for target in set(targets):
             target_directory = f"{dataset_directory}/{target}"
-            if not os.path.exists(target_directory):
-                os.makedirs(target_directory)
-            
+            os.makedirs(target_directory, exist_ok=True)
+
+        for target, images in dict_dataset.items():            
             for index, image in enumerate(images):
                 if not isinstance(image, Image.Image):
                     image = ToPILImage()(image)
-                image.save(f'{target_directory}/{index}.png')
+                with ThreadPoolExecutor() as executor:
+                    executor.submit(save_image, image, f"{dataset_directory}/{target}/{index}.png")
         
         dataset = ImageFolder(root=dataset_directory, transform=t)
         return dataset
     
-    # Se for um diretório, trata como `directory`
     elif isinstance(dataset_or_directory, str) and n is not None:
         directory = dataset_or_directory
-        dataset = []
         files = os.listdir(directory)
-        for idx, file in enumerate(files):
-            image = Image.open(f'{directory}/{file}')
-            label = (idx % n) + 1 if (idx % n) + 1 != 0 else n
-            dataset.append((image, label))
+        files.sort()
+        with ThreadPoolExecutor() as executor:
+            dataset = []
+            for i, file in enumerate(files):
+                file_path = f'{directory}/{file}'
+                image = executor.submit(load_image, file_path).result()
+                label = i // n
+                dataset.append((image, label))
         
-        # Chama a função novamente usando o dataset carregado
-        return create_folder_dataset(dataset, name, transform=transform)
+        return create_folder_dataset(dataset, name, transform=t)
     else:
         raise ValueError("Invalid parameters for create_folder_dataset.")
