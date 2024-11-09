@@ -1,40 +1,42 @@
 import os
 
 import torch
-import cv2
+import PIL
 import numpy as np
+import pandas as pd
 
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader, Subset, ConcatDataset
 
 from scripts.rnn import RNN
 from scripts.splitter import WindowSplitter
+from scripts.data_loader import create_folder_dataset   
 
 def fit(model, data, device, indices, num_epochs=100, aug_factor=1):
+    accuracies = []
     print(f"Augmentation factor: {1 if aug_factor == 0 else aug_factor}")
     splitter = WindowSplitter()
     optimizer = torch.optim.Adam(model.parameters())
     criterion = torch.nn.CrossEntropyLoss()
     rnn = RNN(Q=aug_factor, P=3*3)
     
-    curr_aug = len([f for f in os.listdir(os.path.dirname(data.root)) if os.path.isdir(os.path.dirname(data.root))])
+    curr_aug = len([f for f in os.listdir(f'datasets/outex/') if os.path.isdir(f'datasets/outex/')])
     if aug_factor > curr_aug:
         for n in range(curr_aug+1, aug_factor+1):
-            if not os.Path(f'../datasets/Outex/Outex{n}/').is_dir():
-                os.Path(f'../datasets/Outex/Outex{n}/').mkdir()
+            os.makedirs(f'datasets/outex/outex{n}/', exist_ok=True)
             for i in range(0,68):
-                if not os.Path(f'../datasets/Outex/Outex{n}/'+"{:03d}".format(i)).is_dir():
-                    os.Path(f'../datasets/Outex/Outex{n}/'+"{:03d}".format(i)).mkdir()
+                os.makedirs(f'datasets/outex/outex{n}/{i}', exist_ok=True)
 
-        j = 0 
+        j = 0
         for image, label in data:
             input = splitter.split(image.reshape(128,128), window_size=3, padding=True)
             images = rnn._generate_images(input)
             images = images.reshape(aug_factor, 1, 128, 128)
-            images =  (images*255).astype(np.uint8)
-            for n in range(curr_aug+1, aug_factor+1):
-                cv2.imwrite(f'../datasets/Outex/Outex{n}/'+"{:03d}".format(label)+"/{:03d}".format(j)+".png", images[n-1].reshape(128,128))
-                j = j + 1      
+            images =  (images*255)
+            for i in range(curr_aug+1, aug_factor+1):
+                pil_image = PIL.Image.fromarray(images[i-1].reshape(128, 128).astype(np.uint8))
+                pil_image.save(f'datasets/outex/outex{i}/{label}/{j}.png')
+                j = j + 1
 
     train = Subset(data, indices[0])
     val = Subset(data, indices[1])
@@ -45,7 +47,7 @@ def fit(model, data, device, indices, num_epochs=100, aug_factor=1):
         if i == 1:
             dataset.append(train)
             continue
-        dataset.append(Subset(ImageFolder(root=f"../datasets/Outex/Outex{i}", transform = data.transform), indices[0]))
+        dataset.append(Subset(ImageFolder(root=f"datasets/outex/outex{i}", transform = data.transform), indices[0]))
     train = ConcatDataset(dataset)
 
     train_loader = DataLoader(train, batch_size=int(len(train) * 0.05), shuffle=True)
@@ -95,3 +97,5 @@ def fit(model, data, device, indices, num_epochs=100, aug_factor=1):
         correct_test += (predicted == batch_y).sum().item()
     acc = correct_test / total_test
     print(f"Test acc.: {acc * 100}")
+    accuracies.append(acc)
+    return accuracies
