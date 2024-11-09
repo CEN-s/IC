@@ -40,27 +40,27 @@ def create_folder_dataset(dataset_or_directory: Union[List[tuple], str], name: s
         dataset = dataset_or_directory
         
         dict_dataset = {}
-        targets = []
+        labels = []
 
-        for image, target in dataset:
-            if target not in targets:
-                targets.append(target)
-                dict_dataset[target] = [image]
+        for image, label in dataset:
+            if label not in labels:
+                labels.append(label)
+                dict_dataset[label] = [image]
             else:
-                dict_dataset[target].append(image)
+                dict_dataset[label].append(image)
 
         dataset_directory = f"datasets/{name}/{name}1"
         os.makedirs(dataset_directory, exist_ok=True)
-        for target in set(targets):
-            target_directory = f"{dataset_directory}/{target}"
-            os.makedirs(target_directory, exist_ok=True)
+        for label in set(labels):
+            label_directory = f"{dataset_directory}/{label}"
+            os.makedirs(label_directory, exist_ok=True)
 
-        for target, images in dict_dataset.items():            
+        for label, images in dict_dataset.items():            
             for index, image in enumerate(images):
                 if not isinstance(image, Image.Image):
                     image = ToPILImage()(image)
                 with ThreadPoolExecutor() as executor:
-                    executor.submit(save_image, image, f"{dataset_directory}/{target}/{index}.png")
+                    executor.submit(save_image, image, f"{dataset_directory}/{label}/{index}.png")
         
         dataset = ImageFolder(root=dataset_directory, transform=t)
         return dataset
