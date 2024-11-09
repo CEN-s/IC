@@ -10,8 +10,11 @@ from torchvision.transforms import InterpolationMode
 
 import torch
 import timm
+import pandas as pd
+import matplotlib.pyplot as plt 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)
 
 rep.set_config()
 
@@ -29,7 +32,15 @@ outex = ImageFolder(root="datasets/outex/outex1", transform=t)
 
 indices = rep.split_indices(outex)
 
+accuracies = []
 for i in range(1, 21):
     resnet = timm.create_model('resnet18', pretrained=False, in_chans=1, num_classes=68)
     resnet.to(device)
-    fit(resnet, outex, device, indices, aug_factor=i,  num_epochs=100)
+    accuracies.append(fit(resnet, outex, device, indices, aug_factor=i,  num_epochs=100))
+    print("\n")
+accuracies = pd.DataFrame(accuracies)
+accuracies.plot()
+plt.xlabel('Augmentation Factor')
+plt.ylabel('Accuracy')
+plt.title('Model Accuracy vs Augmentation Factor')
+plt.savefig('accuracy_plot_outex.png')
