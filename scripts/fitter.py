@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import torch
 import PIL
@@ -13,6 +14,10 @@ from scripts.splitter import WindowSplitter
 from scripts.data_loader import create_folder_dataset   
 
 def fit(model, data, device, indices, num_epochs=100, aug_factor=1):
+    root = Path(data.root)
+    parent = root.parent
+    name = parent.name
+
     accuracies = []
     print(f"Augmentation factor: {1 if aug_factor == 0 else aug_factor}")
     splitter = WindowSplitter()
@@ -20,12 +25,12 @@ def fit(model, data, device, indices, num_epochs=100, aug_factor=1):
     criterion = torch.nn.CrossEntropyLoss()
     rnn = RNN(Q=aug_factor, P=3*3)
     
-    curr_aug = len([f for f in os.listdir(f'datasets/outex/') if os.path.isdir(f'datasets/outex/')])
+    
+    curr_aug = len([f for f in root.parent.iterdir()])
     if aug_factor > curr_aug:
         for n in range(curr_aug+1, aug_factor+1):
-            os.makedirs(f'datasets/outex/outex{n}/', exist_ok=True)
-            for i in range(0,68):
-                os.makedirs(f'datasets/outex/outex{n}/{i}', exist_ok=True)
+            for i in range(0,20):
+                Path(parent/f'{name}{n}'/f'{i}').mkdir(parents=True, exist_ok=True)
 
         j = 0
         for image, label in data:
@@ -35,7 +40,7 @@ def fit(model, data, device, indices, num_epochs=100, aug_factor=1):
             images =  (images*255)
             for i in range(curr_aug+1, aug_factor+1):
                 pil_image = PIL.Image.fromarray(images[i-1].reshape(128, 128).astype(np.uint8))
-                pil_image.save(f'datasets/outex/outex{i}/{label}/{j}.png')
+                pil_image.save(parent/f'{name}{i}'/f'{label}/{j}.png')
                 j = j + 1
 
     train = Subset(data, indices[0])
@@ -47,13 +52,16 @@ def fit(model, data, device, indices, num_epochs=100, aug_factor=1):
         if i == 1:
             dataset.append(train)
             continue
-        dataset.append(Subset(ImageFolder(root=f"datasets/outex/outex{i}", transform = data.transform), indices[0]))
+        dataset.append(Subset(ImageFolder(root=parent/f'{name}{i}', transform = data.transform), indices[0]))
     train = ConcatDataset(dataset)
+
+    print("Train size: ", len(train))
 
     train_loader = DataLoader(train, batch_size=int(len(train) * 0.05), shuffle=True)
     val_loader = DataLoader(val, batch_size=int(len(val) * 0.05), shuffle=False)
     test_loader = DataLoader(test, batch_size=int(len(test) * 0.05), shuffle=False)
 
+    
     model.train()
     max_acc = 0
     for epoch in range(num_epochs):
@@ -99,3 +107,4 @@ def fit(model, data, device, indices, num_epochs=100, aug_factor=1):
     print(f"Test acc.: {acc * 100}")
     accuracies.append(acc)
     return accuracies
+ 
