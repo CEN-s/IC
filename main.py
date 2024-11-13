@@ -25,22 +25,25 @@ t = transforms.Compose([
                 transforms.Lambda(lambda x: x.type(torch.float32))
             ])
 
-if not os.path.exists("datasets/outex"):
-    outex = create_folder_dataset("datasets originais/outex", "outex", 20)
+if not os.path.exists("datasets/1200tex"):
+    data = create_folder_dataset("datasets originais/1200tex", "1200tex", 60)
 
-outex = ImageFolder(root="datasets/outex/outex1", transform=t)
+data = ImageFolder(root="datasets/1200tex/1200tex1", transform=t)
 
-indices = rep.split_indices(outex)
+indices = rep.split_indices(data)
 
 accuracies = []
-for i in range(1, 21):
-    resnet = timm.create_model('resnet18', pretrained=False, in_chans=1, num_classes=68)
+for i in range(1, 11):
+    resnet = timm.create_model('resnet18', pretrained=False, in_chans=1, num_classes=20)
     resnet.to(device)
-    accuracies.append(fit(resnet, outex, device, indices, aug_factor=i,  num_epochs=100))
-    print("\n")
+    accuracies.append(fit(resnet, data, device, indices, aug_factor=i,  num_epochs=100))
+
 accuracies = pd.DataFrame(accuracies)
+accuracies.to_csv('resultados/accuracy_1200tex.csv')
+accuracies.columns = ['Accuracy']
+accuracies.index = range(1, len(accuracies) + 1)
 accuracies.plot()
 plt.xlabel('Augmentation Factor')
 plt.ylabel('Accuracy')
 plt.title('Model Accuracy vs Augmentation Factor')
-plt.savefig('accuracy_plot_outex.png')
+plt.savefig('resultados/accuracy_plot_1200tex.png')
