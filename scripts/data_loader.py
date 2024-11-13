@@ -49,7 +49,7 @@ def create_folder_dataset(dataset_or_directory: Union[List[tuple], str], name: s
             else:
                 dict_dataset[label].append(image)
 
-        dataset_directory = f"datasets/{name}/{name}1"
+        dataset_directory = f"datasets/{name}"
         os.makedirs(dataset_directory, exist_ok=True)
         for label in set(labels):
             label_directory = f"{dataset_directory}/{label}"

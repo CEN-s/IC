@@ -3,6 +3,7 @@ import os
 import scripts.reproducibility as rep
 from scripts.data_loader import create_folder_dataset
 from scripts.fitter import fit
+from scripts.rnn import RNN
 
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
@@ -13,6 +14,7 @@ import timm
 import pandas as pd
 import matplotlib.pyplot as plt 
 
+max_aug_factor = 10
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
@@ -22,21 +24,20 @@ t = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Grayscale(num_output_channels=1),
                 transforms.Resize((128, 128), interpolation=InterpolationMode.BILINEAR), 
-                transforms.Lambda(lambda x: x.type(torch.float32))
             ])
 
-if not os.path.exists("datasets/1200tex"):
-    data = create_folder_dataset("datasets originais/1200tex", "1200tex", 60)
+if not os.path.exists("datasets/outex"):
+    data = create_folder_dataset("datasets originais/outex", "1200tex", 60)
 
-data = ImageFolder(root="datasets/1200tex/1200tex1", transform=t)
-
+data = ImageFolder(root="datasets/1200tex", transform=t)
 indices = rep.split_indices(data)
+rnn = RNN(Q=max_aug_factor, P=3*3)
 
 accuracies = []
-for i in range(1, 11):
+for i in range(1, max_aug_factor+1):
     resnet = timm.create_model('resnet18', pretrained=False, in_chans=1, num_classes=20)
     resnet.to(device)
-    accuracies.append(fit(resnet, data, device, indices, aug_factor=i,  num_epochs=100))
+    accuracies.append(fit(rnn, resnet, data, device, indices, aug_factor=i,  num_epochs=100))
 
 accuracies = pd.DataFrame(accuracies)
 accuracies.to_csv('resultados/accuracy_1200tex.csv')

@@ -2,3 +2,4 @@ datasets/
 datasets originais/
 __pycache__/
 test.py
+*.ipynb
